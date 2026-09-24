@@ -93,20 +93,45 @@ planner_tool = agent_tool.AgentTool(agent=robust_blog_planner)
 writer_tool  = agent_tool.AgentTool(agent=robust_blog_writer)
 
 # ── Root Agent: Plan → Write ────────────────────────────────────────────────
+import subprocess
+from google.adk.tools import FunctionTool
+
+def publish_to_blog(title: str, content: str) -> str:
+    """Publishes the final blog post to the website.
+    
+    Args:
+        title: The title of the blog post.
+        content: The Markdown content of the blog post.
+    """
+    script_path = Path(__file__).resolve().parent.parent.parent / "tech-blog" / "add_post.py"
+    result = subprocess.run(
+        [sys.executable, str(script_path), title, content],
+        capture_output=True,
+        text=True
+    )
+    if result.returncode == 0:
+        return f"Successfully published. Output: {result.stdout}"
+    else:
+        return f"Failed to publish. Error: {result.stderr}"
+
+publish_tool = FunctionTool(publish_to_blog)
+
 root_agent = Agent(
    name="Blogger",
    model=MODEL,
-   description="Minimal multi-agent blogger that plans and writes.",
+   description="Minimal multi-agent blogger that plans, writes, and publishes.",
    instruction=f"""
 If the user gives a topic:
 1) Call the planner tool to generate the outline.
 2) Call the writer tool to produce the full draft.
-3) End with 3 alternate titles and 2 tweet-length hooks.
+3) Call the publish tool to automatically post the final draft to the blog. Use a creative title.
+4) End with 3 alternate titles and 2 tweet-length hooks.
 
 Date: {datetime.datetime.now().strftime("%Y-%m-%d")}
 """,
    tools=[
        planner_tool, # calls RobustBlogPlanner
        writer_tool,  # calls RobustBlogWriter
+       publish_tool, # publishes to blog
    ],
 )
